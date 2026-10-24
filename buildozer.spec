@@ -5,7 +5,7 @@ package.domain = org.tse
 source.dir = .
 source.include_exts = py,ttf
 version = 1.0
-requirements = python3==3.11.5,hostpython3==3.11.5,sqlite3,kivy==2.3.0,requests,urllib3,idna,charset-normalizer,certifi,arabic-reshaper,python-bidi
+requirements = python3==3.11.5,hostpython3==3.11.5,sqlite3,kivy==2.3.0,requests,urllib3,idna,charset-normalizer,certifi,arabic-reshaper==3.0.0,python-bidi==0.4.2,future
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE
