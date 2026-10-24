@@ -273,6 +273,13 @@ class TseApp(App):
                 self.liq_in.text = f.read().strip()
         except Exception:
             pass
+        self.infl_in = TextInput(hint_text="%", multiline=False, input_filter="float",
+                                 size_hint_y=None, height=dp(44))
+        try:
+            with open(os.path.join(self.user_data_dir, "infl_manual.txt")) as f:
+                self.infl_in.text = f.read().strip()
+        except Exception:
+            pass
 
     def _build_scan(self):
         from kivy.uix.button import Button
@@ -443,12 +450,22 @@ class TseApp(App):
         except Exception:
             pass
         try:
+            with open(os.path.join(self.user_data_dir, "infl_manual.txt"), "w") as f:
+                f.write(self.infl_in.text.strip())
+        except Exception:
+            pass
+        try:
             d = core.fetch_macro()
             d["usd_base"], d["usd_base_date"] = core.fetch_usd_year_end()
             try:
                 d["liq_growth"] = float(self.liq_in.text.strip())
             except Exception:
                 d["liq_growth"] = None
+            try:
+                d["infl"] = float(self.infl_in.text.strip())
+            except Exception:
+                d["infl"] = None
+            d["cmp"] = history.compare(self.user_data_dir, d.get("liq_growth"), d.get("infl"))
             try:
                 man = float(self.ice_in_text)
             except Exception:
@@ -470,6 +487,8 @@ class TseApp(App):
         b.add_widget(self.ice_in)
         b.add_widget(FaLabel(raw="رشد نقدینگی نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
         b.add_widget(self.liq_in)
+        b.add_widget(FaLabel(raw="تورم نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
+        b.add_widget(self.infl_in)
         base = d.get("usd_base") or 0
         card_ = lambda t, v: b.add_widget(ValueRow(t, v))
         b.add_widget(FaLabel(raw="— دلار: کف قوی و قیمت تعادلی —", font_size="16sp", color=(.2, .75, .95, 1)))
@@ -485,6 +504,32 @@ class TseApp(App):
 
         def card(title, val):
             b.add_widget(ValueRow(title, val))
+
+        c = d.get("cmp") or {}
+        b.add_widget(FaLabel(raw="— مقایسه نقطه‌به‌نقطه: دلار، نقدینگی، تورم، شاخص —",
+                             font_size="16sp", color=(.2, .75, .95, 1)))
+        if c.get("usd_now"):
+            P = lambda k: (f"{c[k]:+.1f}٪" if c.get(k) is not None else "نامشخص")
+            card("تاریخ داده‌ی تاریخچه / مقایسه با", f"{c['day']} / {c['ly_day']}")
+            card("رشد دلار نسبت به سال قبل", P("usd_yoy"))
+            card("رشد دلار از اول سال", P("usd_ytd"))
+            card("رشد نقدینگی (ورودی شما)", f"{d['liq_growth']:+.1f}٪" if d.get("liq_growth") is not None else "نامشخص")
+            card("تورم نقطه‌به‌نقطه (ورودی شما)", f"{d['infl']:+.1f}٪" if d.get("infl") is not None else "نامشخص")
+            for k, nm in (("liq", "نقدینگی"), ("infl", "تورم")):
+                if c.get(k + "_gap") is not None:
+                    g = c[k + "_gap"]
+                    card(f"دلار نسبت به تعادل {nm}: " + ("حباب" if g > 0 else "عقب‌ماندگی"),
+                         f"{g:+.1f}٪ (تعادل {c[k + '_eq']:,.0f})")
+            card("رشد شاخص کل نسبت به سال قبل", P("idx_yoy"))
+            card("رشد شاخص کل از اول سال", P("idx_ytd"))
+            for k, nm in (("usd", "دلار"),):
+                if c.get("idx_yoy") is not None and c.get("usd_yoy") is not None:
+                    card(f"شاخص منهای {nm} (سالانه)", f"{c['idx_yoy'] - c['usd_yoy']:+.1f} واحد درصد")
+            for key, nm in (("liq_growth", "نقدینگی"), ("infl", "تورم")):
+                if d.get(key) is not None and c.get("idx_yoy") is not None:
+                    card(f"شاخص منهای {nm} (سالانه)", f"{c['idx_yoy'] - d[key]:+.1f} واحد درصد")
+        else:
+            card("مقایسه", "نامشخص (تاریخچه موجود نیست)")
 
         def num(v, fmt="{:,.0f}", suf=""):
             return (fmt.format(v) + suf) if v and v > 0 else "نامشخص"

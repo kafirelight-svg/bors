@@ -207,3 +207,51 @@ def seed(base_dir, app_dir):
                 shutil.copyfile(src, dst)
     except Exception:
         pass
+
+
+def _before(rows, day):
+    """آخرین مقدار در تاریخ day یا قبل از آن -> (day, value) یا None."""
+    best = None
+    for dd, v in rows:
+        if dd <= day:
+            best = (dd, v)
+        else:
+            break
+    return best
+
+
+def compare(base_dir, liq=None, infl=None):
+    """مقایسه نقطه‌به‌نقطه‌ی دلار و شاخص کل با نقدینگی و تورم (ورودی دستی، درصد). مقدار نامعلوم = None."""
+    import datetime as dt
+    out = {}
+    try:
+        usd, idx = load(base_dir, "usd_toman"), load(base_dir, "tse_total")
+        if not usd or not idx:
+            return out
+        day = min(usd[-1][0], idx[-1][0])
+        t = dt.date.fromisoformat(day)
+        try:
+            ly = t.replace(year=t.year - 1)
+        except ValueError:
+            ly = t.replace(year=t.year - 1, day=28)
+        ys = dt.date(t.year if (t.month, t.day) >= (3, 21) else t.year - 1, 3, 21)  # ۱ فروردین (تقریبی)
+        out["day"], out["ly_day"] = day, ly.isoformat()
+        for name, rows in (("usd", usd), ("idx", idx)):
+            now = _before(rows, day)
+            a = _before(rows, ly.isoformat())
+            s = _before(rows, (ys - dt.timedelta(days=1)).isoformat())
+            out[name + "_now"] = now[1]
+            if a:
+                out[name + "_ly"] = a[1]
+                out[name + "_yoy"] = (now[1] / a[1] - 1) * 100
+            if s:
+                out[name + "_ys"] = s[1]
+                out[name + "_ytd"] = (now[1] / s[1] - 1) * 100
+        for key, g in (("liq", liq), ("infl", infl)):
+            if g is not None and "usd_ly" in out:
+                eq = out["usd_ly"] * (1 + g / 100)
+                out[key + "_eq"] = eq
+                out[key + "_gap"] = (out["usd_now"] / eq - 1) * 100  # مثبت = حباب، منفی = عقب‌ماندگی
+    except Exception:
+        pass
+    return out
