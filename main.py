@@ -1,4 +1,4 @@
-import os, csv, threading
+import os, csv, threading, sys, traceback
 from kivy.config import Config
 from kivy.app import App
 from kivy.clock import Clock, mainthread
@@ -571,5 +571,24 @@ class TseApp(App):
             self.set_status("خطا: " + str(e))
 
 
+def _crash_screen(msg):
+    from kivy.base import runTouchApp
+    from kivy.uix.scrollview import ScrollView
+    from kivy.uix.textinput import TextInput
+    try:
+        for d in ("/storage/emulated/0/Download", os.path.expanduser("~")):
+            try:
+                open(os.path.join(d, "tse_crash.txt"), "w", encoding="utf-8").write(msg)
+                break
+            except Exception:
+                pass
+    except Exception:
+        pass
+    runTouchApp(TextInput(text=msg, readonly=True, font_size="12sp"))
+
+
 if __name__ == "__main__":
-    TseApp().run()
+    try:
+        TseApp().run()
+    except Exception:
+        _crash_screen(traceback.format_exc())
