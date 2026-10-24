@@ -185,6 +185,14 @@ class TseApp(App):
                                size_hint_y=None, height=dp(46), background_normal="",
                                background_color=(.5, .3, .7, 1))
         self.hist_btn.bind(on_release=lambda *_: self.dl_history())
+        from kivy.uix.textinput import TextInput
+        self.ice_in = TextInput(hint_text="ICE", multiline=False, input_filter="float",
+                                size_hint_y=None, height=dp(44))
+        try:
+            with open(os.path.join(self.user_data_dir, "ice_manual.txt")) as f:
+                self.ice_in.text = f.read().strip()
+        except Exception:
+            pass
 
     def _build_scan(self):
         from kivy.uix.button import Button
@@ -343,8 +351,20 @@ class TseApp(App):
             self.macro_done(self.data)
 
     def _macro_job(self):
+        self.ice_in_text = self.ice_in.text.strip()
+        try:
+            with open(os.path.join(self.user_data_dir, "ice_manual.txt"), "w") as f:
+                f.write(self.ice_in_text)
+        except Exception:
+            pass
         try:
             d = core.fetch_macro()
+            try:
+                man = float(self.ice_in_text)
+            except Exception:
+                man = 0
+            if man > 0:
+                d["official_fx_toman"] = man
             history.save_snapshot(self.user_data_dir, d)
         except Exception as e:
             d = {"errors": [str(e)]}
@@ -356,6 +376,8 @@ class TseApp(App):
         self.data = d
         b = self.macro_box
         b.clear_widgets()
+        b.add_widget(FaLabel(raw="نرخ رسمی ICE دستی (تومان) — خالی = خودکار", font_size="12sp"))
+        b.add_widget(self.ice_in)
 
         def card(title, val):
             b.add_widget(FaLabel(raw=f"{title}:  {val}", font_size="15sp"))
