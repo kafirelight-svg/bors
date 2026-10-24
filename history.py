@@ -186,3 +186,24 @@ def analyze(base_dir):
         out["gold_premium_now"] = (pr[-1] - 1) * 100
         out["gold_premium_median"] = (statistics.median(pr) - 1) * 100
     return out
+
+
+def seed(base_dir, app_dir):
+    """اولین اجرا: تاریخچه‌ی همراه برنامه را کپی می‌کند تا دانلود لازم نباشد."""
+    import shutil
+    dst = db_path(base_dir)
+    src = os.path.join(app_dir, "data", "history.db")
+    try:
+        if os.path.exists(src):
+            n = 0
+            if os.path.exists(dst):
+                c = sqlite3.connect(dst)
+                try:
+                    n = c.execute("SELECT COUNT(*) FROM daily").fetchone()[0]
+                except Exception:
+                    n = 0
+                c.close()
+            if n < 1000:
+                shutil.copyfile(src, dst)
+    except Exception:
+        pass

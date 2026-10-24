@@ -8,6 +8,7 @@ from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
+from kivy.uix.button import Button
 from kivy.uix.widget import Widget
 from kivy.utils import platform
 import arabic_reshaper
@@ -22,6 +23,50 @@ _rs = arabic_reshaper.ArabicReshaper()
 
 def fa(t):
     return get_display(_rs.reshape(str(t)))
+
+
+class RButton(Button):
+    """دکمه‌ی گرد؛ رنگ از background_color خوانده و خودش رسم می‌شود."""
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        from kivy.graphics import Color, RoundedRectangle
+        self._bg = list(self.background_color)
+        self.background_color = (0, 0, 0, 0)
+        with self.canvas.before:
+            self._c = Color(*self._bg)
+            self._r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
+        self.bind(pos=self._upd, size=self._upd, state=self._upd, disabled=self._upd)
+
+    def _upd(self, *_):
+        r, g, b, a = self._bg
+        k = 0.7 if self.state == "down" else 1
+        self._c.rgba = (r * k, g * k, b * k, 0.35 if self.disabled else a)
+        self._r.pos, self._r.size = self.pos, self.size
+
+
+class ValueRow(BoxLayout):
+    """ردیف عنوان/مقدار با پس‌زمینه‌ی گرد."""
+    def __init__(self, title, val, **kw):
+        super().__init__(size_hint_y=None, height=dp(42), padding=(dp(10), dp(2)), **kw)
+        from kivy.graphics import Color, RoundedRectangle
+        with self.canvas.before:
+            Color(0.1, 0.14, 0.2, 1)
+            self._r = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
+            Color(0.95, 0.72, 0.2, 1)
+            self._bar = RoundedRectangle(pos=self.pos, size=(dp(3), self.height), radius=[dp(2)])
+        self.bind(pos=self._upd, size=self._upd)
+        v = Label(text=fa(val), font_name="Vazir", font_size="15sp", halign="left", valign="middle",
+                  color=(0.4, 0.85, 1, 1))
+        t = Label(text=fa(title), font_name="Vazir", font_size="13sp", halign="right", valign="middle",
+                  color=(0.8, 0.85, 0.9, 1))
+        for w in (v, t):
+            w.bind(size=lambda i, s: setattr(i, "text_size", s))
+        self.add_widget(v)
+        self.add_widget(t)
+
+    def _upd(self, *_):
+        self._r.pos, self._r.size = self.pos, self.size
+        self._bar.pos, self._bar.size = (self.x + dp(2), self.y + dp(6)), (dp(3), self.height - dp(12))
 
 
 class FaLabel(Label):
@@ -54,14 +99,17 @@ KV = """
             pos: self.pos
             size: self.size
             radius: [dp(8)]
-<Btn@Button>:
+<Btn@RButton>:
     font_name: 'Vazir'
     size_hint_y: None
     height: dp(46)
     background_normal: ''
     background_color: 0.15, 0.4, 0.8, 1
+    font_size: '14sp'
 BoxLayout:
     orientation: 'vertical'
+    spacing: dp(4)
+    padding: dp(4)
     canvas.before:
         Color:
             rgba: 0.04, 0.055, 0.08, 1
@@ -70,7 +118,29 @@ BoxLayout:
             size: self.size
     BoxLayout:
         size_hint_y: None
-        height: dp(48)
+        height: dp(44)
+        spacing: dp(8)
+        padding: dp(6), 0
+        canvas.before:
+            Color:
+                rgba: 0.09, 0.12, 0.18, 1
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(14)]
+        Image:
+            source: app.icon_path
+            size_hint_x: None
+            width: dp(36)
+        Label:
+            text: 'TSE Market Hunter'
+            font_size: '17sp'
+            bold: True
+            color: 0.97, 0.78, 0.25, 1
+    BoxLayout:
+        size_hint_y: None
+        height: dp(46)
+        spacing: dp(4)
         Btn:
             id: tab1
             text: app.t_macro
@@ -146,6 +216,8 @@ class ChartWidget(Widget):
 
 
 class TseApp(App):
+    icon_path = os.path.join(HERE, "icon.png")
+    icon = icon_path
     t_macro = StringProperty(fa("کلان"))
     t_scan = StringProperty(fa("اسکنر بورس"))
     t_my = StringProperty(fa("نماد من"))
@@ -153,6 +225,7 @@ class TseApp(App):
 
     def build(self):
         self.title = "TSE Market Hunter"
+        history.seed(self.user_data_dir, HERE)
         self.root_w = Builder.load_string(KV)
         self.data = None
         self.results = []
@@ -177,11 +250,11 @@ class TseApp(App):
     def _build_macro(self):
         from kivy.uix.button import Button
         self.macro_sv, self.macro_box = self._scroll()
-        self.macro_btn = Button(text=fa("به‌روزرسانی"), font_name="Vazir", size_hint_y=None,
+        self.macro_btn = RButton(text=fa("به‌روزرسانی"), font_name="Vazir", size_hint_y=None,
                                 height=dp(46), background_normal="",
                                 background_color=(.15, .4, .8, 1))
         self.macro_btn.bind(on_release=lambda *_: self.refresh())
-        self.hist_btn = Button(text=fa("دانلود تاریخچه ۱۰ ساله"), font_name="Vazir",
+        self.hist_btn = RButton(text=fa("به‌روزرسانی تاریخچه (اختیاری)"), font_name="Vazir",
                                size_hint_y=None, height=dp(46), background_normal="",
                                background_color=(.5, .3, .7, 1))
         self.hist_btn.bind(on_release=lambda *_: self.dl_history())
@@ -191,6 +264,13 @@ class TseApp(App):
         try:
             with open(os.path.join(self.user_data_dir, "ice_manual.txt")) as f:
                 self.ice_in.text = f.read().strip()
+        except Exception:
+            pass
+        self.liq_in = TextInput(hint_text="%", multiline=False, input_filter="float",
+                                size_hint_y=None, height=dp(44))
+        try:
+            with open(os.path.join(self.user_data_dir, "liq_manual.txt")) as f:
+                self.liq_in.text = f.read().strip()
         except Exception:
             pass
 
@@ -207,21 +287,21 @@ class TseApp(App):
         self.filter_in.bind(text=lambda *_: self.render_scan())
         self.scan_page.add_widget(self.filter_in)
         row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6))
-        self.scan_btn = Button(text=fa("اسکن بازار"), font_name="Vazir", background_normal="",
+        self.scan_btn = RButton(text=fa("اسکن بازار"), font_name="Vazir", background_normal="",
                                background_color=(.1, .6, .4, 1))
         self.scan_btn.bind(on_release=lambda *_: self.start_scan())
-        csv_btn = Button(text="CSV", font_name="Vazir", background_normal="",
+        csv_btn = RButton(text="CSV", font_name="Vazir", background_normal="",
                          background_color=(.3, .3, .4, 1))
         csv_btn.bind(on_release=lambda *_: self.export_csv())
         row.add_widget(self.scan_btn)
         row.add_widget(csv_btn)
         self.scan_page.add_widget(row)
         row2 = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6))
-        self.brk_btn = Button(text=fa("مقاومت + شکست (تعدیل‌شده)"), font_name="Vazir",
+        self.brk_btn = RButton(text=fa("مقاومت + شکست (تعدیل‌شده)"), font_name="Vazir",
                               background_normal="", background_color=(.7, .4, .1, 1))
         self.brk_btn.bind(on_release=lambda *_: self.start_brk())
         row2.add_widget(self.brk_btn)
-        self.multi_btn = Button(text=fa("اسکن چندروشی"), font_name="Vazir",
+        self.multi_btn = RButton(text=fa("اسکن چندروشی"), font_name="Vazir",
                                 background_normal="", background_color=(.4, .3, .7, 1))
         self.multi_btn.bind(on_release=lambda *_: self.start_multi())
         row2.add_widget(self.multi_btn)
@@ -236,7 +316,7 @@ class TseApp(App):
         row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6))
         self.my_in = TextInput(hint_text=fa("نماد، مثلاً فولاد"), multiline=False,
                                font_name="Vazir", halign="right")
-        self.my_btn = Button(text=fa("تحلیل"), font_name="Vazir", size_hint_x=.3,
+        self.my_btn = RButton(text=fa("تحلیل"), font_name="Vazir", size_hint_x=.3,
                              background_normal="", background_color=(.1, .6, .4, 1))
         self.my_btn.bind(on_release=lambda *_: self.start_my())
         self.my_in.bind(on_text_validate=lambda *_: self.start_my())
@@ -253,14 +333,14 @@ class TseApp(App):
         self.glob_page = BoxLayout(orientation="vertical", spacing=dp(6), padding=dp(6))
         row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6))
         for sym, name in globalx.GLOBAL:
-            b = Button(text=fa(name), font_name="Vazir", background_normal="",
+            b = RButton(text=fa(name), font_name="Vazir", background_normal="",
                        background_color=(.7, .5, .1, 1))
             b.bind(on_release=lambda _b, s=sym, n=name: self.start_glob(s, n))
             row.add_widget(b)
         self.glob_page.add_widget(row)
         row2 = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
         self.glob_in = TextInput(hint_text="Yahoo symbol: e.g. CL=F, AAPL", multiline=False)
-        b2 = Button(text=fa("تحلیل"), font_name="Vazir", size_hint_x=.3, background_normal="",
+        b2 = RButton(text=fa("تحلیل"), font_name="Vazir", size_hint_x=.3, background_normal="",
                     background_color=(.1, .6, .4, 1))
         b2.bind(on_release=lambda *_: self.start_glob(self.glob_in.text.strip(), self.glob_in.text.strip()))
         row2.add_widget(b2)
@@ -335,12 +415,12 @@ class TseApp(App):
         threading.Thread(target=self._macro_job, daemon=True).start()
 
     def dl_history(self):
-        self.set_status("در حال دانلود تاریخچه ۱۰ ساله...")
+        self.set_status("در حال به‌روزرسانی تاریخچه...")
         self.hist_btn.disabled = True
         def job():
             rep = history.download_all(self.user_data_dir)
             bad = [k for k, v in rep.items() if isinstance(v, str)]
-            self.hist_done("تاریخچه ذخیره شد." if not bad else "خطا در: " + "، ".join(bad))
+            self.hist_done("تاریخچه به‌روز شد." if not bad else "خطا در: " + "، ".join(bad))
         threading.Thread(target=job, daemon=True).start()
 
     @mainthread
@@ -358,7 +438,17 @@ class TseApp(App):
         except Exception:
             pass
         try:
+            with open(os.path.join(self.user_data_dir, "liq_manual.txt"), "w") as f:
+                f.write(self.liq_in.text.strip())
+        except Exception:
+            pass
+        try:
             d = core.fetch_macro()
+            d["usd_base"], d["usd_base_date"] = core.fetch_usd_year_end()
+            try:
+                d["liq_growth"] = float(self.liq_in.text.strip())
+            except Exception:
+                d["liq_growth"] = None
             try:
                 man = float(self.ice_in_text)
             except Exception:
@@ -378,9 +468,23 @@ class TseApp(App):
         b.clear_widgets()
         b.add_widget(FaLabel(raw="نرخ رسمی ICE دستی (تومان) — خالی = خودکار", font_size="12sp"))
         b.add_widget(self.ice_in)
+        b.add_widget(FaLabel(raw="رشد نقدینگی نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
+        b.add_widget(self.liq_in)
+        base = d.get("usd_base") or 0
+        card_ = lambda t, v: b.add_widget(ValueRow(t, v))
+        b.add_widget(FaLabel(raw="— دلار: کف قوی و قیمت تعادلی —", font_size="16sp", color=(.2, .75, .95, 1)))
+        if base > 0:
+            card_("پایان سال قبل = کف قوی (" + str(d.get("usd_base_date", "")) + ")", f"{base:,.0f}")
+            lg = d.get("liq_growth")
+            if lg is not None:
+                card_("قیمت تعادلی دلار سال بعد", f"{base * (1 + lg / 100):,.0f}")
+            else:
+                card_("قیمت تعادلی دلار سال بعد", "نامشخص (رشد نقدینگی را وارد کنید)")
+        else:
+            card_("پایان سال قبل (tgju)", "نامشخص")
 
         def card(title, val):
-            b.add_widget(FaLabel(raw=f"{title}:  {val}", font_size="15sp"))
+            b.add_widget(ValueRow(title, val))
 
         def num(v, fmt="{:,.0f}", suf=""):
             return (fmt.format(v) + suf) if v and v > 0 else "نامشخص"

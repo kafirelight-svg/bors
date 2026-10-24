@@ -361,6 +361,23 @@ def fetch_tgju_latest(session, name):
         return 0.0, ""
 
 
+def fetch_usd_year_end(session=None):
+    """Last tgju free-market dollar close of the previous Jalali year -> (toman, date) or (0, '')."""
+    try:
+        import requests
+        s = session or requests.Session()
+        r = s.get(URL_TGJU.format("price_dollar_rl"), timeout=15,
+                  headers={"Referer": "https://www.tgju.org/", "User-Agent": "Mozilla/5.0"})
+        rows = r.json()["data"]
+        cur_year = int(str(rows[0][7]).split("/")[0])
+        for row in rows:  # newest first
+            if int(str(row[7]).split("/")[0]) < cur_year:
+                return to_float(str(row[3]).replace(",", "")) / 10.0, str(row[7])
+    except Exception:
+        pass
+    return 0.0, ""
+
+
 def fetch_macro():
     out = {"usdt_toman": 0.0, "free_market_toman": 0.0, "gold_ounce": 0.0, "silver_ounce": 0.0,
            "gold_ratio": 0.0, "btc_dominance": 0.0, "fng_val": 0, "fng_class": "",
