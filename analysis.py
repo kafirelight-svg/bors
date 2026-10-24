@@ -17,7 +17,7 @@ def _f(x):
 
 
 def adjusted_ohlcv(rows):
-    """rows: TSETMC daily list (any order). Returns oldest-first dict of lists."""
+    """rows: TSETMC daily list (any order). Prices converted rial->toman. Returns oldest-first dict of lists."""
     rows = [r for r in rows if _f(r.get("pClosing")) > 0 and _f(r.get("qTotTran5J")) > 0
             and _f(r.get("priceMax")) > 0 and _f(r.get("priceMin")) > 0]
     rows.sort(key=lambda r: r.get("dEven", 0))
@@ -32,10 +32,10 @@ def adjusted_ohlcv(rows):
         mult[i - 1] = m
     return {
         "day": [r["dEven"] for r in rows],
-        "o": [_f(r.get("priceFirst")) * mult[i] for i, r in enumerate(rows)],
-        "h": [_f(r["priceMax"]) * mult[i] for i, r in enumerate(rows)],
-        "l": [_f(r["priceMin"]) * mult[i] for i, r in enumerate(rows)],
-        "c": [_f(r["pClosing"]) * mult[i] for i, r in enumerate(rows)],
+        "o": [_f(r.get("priceFirst")) * mult[i] / 10 for i, r in enumerate(rows)],
+        "h": [_f(r["priceMax"]) * mult[i] / 10 for i, r in enumerate(rows)],
+        "l": [_f(r["priceMin"]) * mult[i] / 10 for i, r in enumerate(rows)],
+        "c": [_f(r["pClosing"]) * mult[i] / 10 for i, r in enumerate(rows)],
         "v": [_f(r["qTotTran5J"]) for r in rows],
     }
 
