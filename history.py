@@ -111,6 +111,8 @@ def save_snapshot(base_dir, d):
         v = d.get(key)
         if v and v > 0 and ser != "usd_toman":
             conn.execute("INSERT OR REPLACE INTO daily VALUES(?,?,?)", (ser, today, v))
+    if d.get("m2_auto"):
+        conn.execute("INSERT OR REPLACE INTO daily VALUES(?,?,?)", ("m2_hemat", today, d["m2_auto"]))
     conn.commit(); conn.close()
 
 

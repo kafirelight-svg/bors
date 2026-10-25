@@ -535,9 +535,14 @@ class TseApp(App):
             d = core.fetch_macro()
             d["usd_base"], d["usd_base_date"] = core.fetch_usd_year_end()
             try:
+                d["m2est"] = core.fetch_m2_estimate()
+                d["m2_auto"] = d["m2est"]["m2_hemat"]
+            except Exception:
+                d["m2est"] = {}
+            try:
                 d["liq_growth"] = float(self.liq_in.text.strip())
             except Exception:
-                d["liq_growth"] = None
+                d["liq_growth"] = (d.get("m2est") or {}).get("growth_pct")
             try:
                 d["infl"] = float(self.infl_in.text.strip())
             except Exception:
@@ -562,14 +567,21 @@ class TseApp(App):
         b.clear_widgets()
         b.add_widget(FaLabel(raw="نرخ رسمی ICE دستی (تومان) — خالی = خودکار", font_size="12sp"))
         b.add_widget(self.ice_in)
-        b.add_widget(FaLabel(raw="حجم نقدینگی M2 (همت = هزار میلیارد تومان) — دستی", font_size="12sp"))
+        b.add_widget(FaLabel(raw="حجم نقدینگی M2 (همت) — خالی = تخمین خودکار سایت", font_size="12sp"))
         b.add_widget(self.m2_in)
         b.add_widget(FaLabel(raw="ذخایر و ارز موجود (میلیارد دلار) — دستی", font_size="12sp"))
         b.add_widget(self.res_in)
+        est = d.get("m2est") or {}
         try:
-            m2, rs = float(self.m2_in.text), float(self.res_in.text)
+            m2 = float(self.m2_in.text)
         except Exception:
-            m2 = rs = 0
+            m2 = est.get("m2_hemat") or 0
+            if m2 > 0:
+                b.add_widget(ValueRow("M2 تخمینی خودکار (همت) — " + est.get("source", ""), f"{m2:,.0f}"))
+        try:
+            rs = float(self.res_in.text)
+        except Exception:
+            rs = 0
         b.add_widget(FaLabel(raw="— ارزش ذاتی دلار = M2 ÷ ارز موجود —", font_size="16sp", color=(.2, .75, .95, 1)))
         if m2 > 0 and rs > 0:
             iv = m2 * 1000 / rs
@@ -581,7 +593,7 @@ class TseApp(App):
                 ValueRow_("بازار نسبت به ارزش ذاتی", f"{(cur / iv - 1) * 100:+.1f}٪")
         else:
             b.add_widget(ValueRow("ارزش ذاتی دلار", "نامشخص (M2 و ذخایر را وارد کنید)"))
-        b.add_widget(FaLabel(raw="رشد نقدینگی نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
+        b.add_widget(FaLabel(raw="رشد نقدینگی (٪) — خالی = تخمین خودکار", font_size="12sp"))
         b.add_widget(self.liq_in)
         b.add_widget(FaLabel(raw="تورم نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
         b.add_widget(self.infl_in)

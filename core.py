@@ -402,6 +402,28 @@ EMAMI_PURE_G = 8.133 * 0.900  # گرم طلای خالص سکه‌ی امامی
 OZ = 31.1035
 
 
+def fetch_m2_estimate():
+    """نقدینگی تخمینی از فرمول سایت IranLiquidityCounter (نه آمار رسمی).
+    -> {'m2_hemat','growth_pct','source'} یا {} اگر نشد."""
+    import re, time
+    base_ts, base_liq, rate, src = 1737318599, 97233000000000000.0, 1.00000000478, "ثابت‌های ذخیره‌شده"
+    try:
+        r = make_session().get("https://sabersayadi.github.io/IranLiquidityCounter/script.js", timeout=12)
+        t = r.text
+        a = re.search(r"DEFAULT_BASE_TIMESTAMP\s*=\s*(\d+)", t)
+        b = re.search(r"DEFAULT_BASE_LIQUIDITY\s*=\s*(\d+)", t)
+        g = re.search(r"DEFAULT_GROWTH_RATE\s*=\s*([\d.]+)", t)
+        if a and b and g:
+            base_ts, base_liq, rate, src = int(a.group(1)), float(b.group(1)), float(g.group(1)), "سایت (زنده)"
+    except Exception:
+        pass
+    now = time.time()
+    year = 31557600
+    m2 = base_liq * rate ** (now - base_ts) / 1e13
+    ago = base_liq * rate ** (now - year - base_ts) / 1e13
+    return {"m2_hemat": m2, "m2_year_ago": ago, "growth_pct": (m2 / ago - 1) * 100, "source": src}
+
+
 def fetch_gold_tab():
     """داده‌ی تب طلا. مقدار نامعلوم = 0 (نمایش «نامشخص»). قیمت‌های ریالی tgju تقسیم بر ۱۰."""
     s = make_session()
