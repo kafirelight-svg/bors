@@ -378,6 +378,69 @@ def fetch_usd_year_end(session=None):
     return 0.0, ""
 
 
+def fetch_yahoo_last(session, sym):
+    try:
+        r = session.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d",
+                        timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        return float(r.json()["chart"]["result"][0]["meta"]["regularMarketPrice"])
+    except Exception:
+        return 0.0
+
+
+def _tgju_raw(session, name):
+    """آخرین ردیف tgju بدون تبدیل واحد -> (عدد خام, تاریخ شمسی)."""
+    try:
+        r = session.get(URL_TGJU.format(name), timeout=10,
+                        headers={"Referer": "https://www.tgju.org/", "User-Agent": "Mozilla/5.0"})
+        row = r.json()["data"][0]
+        return to_float(str(row[3]).replace(",", "")), str(row[7])
+    except Exception:
+        return 0.0, ""
+
+
+EMAMI_PURE_G = 8.133 * 0.900  # گرم طلای خالص سکه‌ی امامی
+OZ = 31.1035
+
+
+def fetch_gold_tab():
+    """داده‌ی تب طلا. مقدار نامعلوم = 0 (نمایش «نامشخص»). قیمت‌های ریالی tgju تقسیم بر ۱۰."""
+    s = make_session()
+    o = {}
+    usd, o["date"] = _tgju_raw(s, "price_dollar_rl")
+    o["usd"] = usd / 10
+    for k, n in (("g24", "geram24"), ("g18", "geram18"), ("s999", "silver_999"), ("emami", "sekee")):
+        o[k] = _tgju_raw(s, n)[0] / 10
+    o["xau"] = _tgju_raw(s, "ons")[0] / 10 * 10 or 0.0
+    o["xag"] = _tgju_raw(s, "silver")[0]
+    # اونس‌ها در tgju به دلار و بدون ضریب ریال هستند؛ اگر نامعقول بود از یاهو
+    if not (500 < o["xau"] < 20000):
+        o["xau"] = fetch_yahoo_last(s, "GC=F")
+    if not (3 < o["xag"] < 500):
+        o["xag"] = fetch_yahoo_last(s, "SI=F")
+    out = dict(o)
+    u = o["usd"]
+    if o["xau"] > 0 and u > 0:
+        f24 = o["xau"] * u / OZ
+        out["f24"] = f24
+        out["f18"] = f24 * 0.75
+        out["femami"] = f24 * EMAMI_PURE_G
+        if o["g18"] > 0:
+            out["b18"] = (o["g18"] / out["f18"] - 1) * 100
+        if o["emami"] > 0:
+            out["bemami"] = (o["emami"] / out["femami"] - 1) * 100
+    if o["xau"] > 0 and o["xag"] > 0:
+        out["r_glob"] = o["xau"] / o["xag"]
+        if u > 0:
+            out["fs999"] = o["xag"] * u / OZ
+            if o["s999"] > 0:
+                out["bsilver"] = (o["s999"] / out["fs999"] - 1) * 100
+    if o["g24"] > 0 and o["s999"] > 0:
+        out["r_dom"] = o["g24"] / o["s999"]
+    if out.get("r_glob") and out.get("r_dom"):
+        out["r_gap"] = (out["r_dom"] / out["r_glob"] - 1) * 100
+    return out
+
+
 def fetch_macro():
     out = {"usdt_toman": 0.0, "free_market_toman": 0.0, "gold_ounce": 0.0, "silver_ounce": 0.0,
            "gold_ratio": 0.0, "btc_dominance": 0.0, "fng_val": 0, "fng_class": "",
@@ -408,6 +471,10 @@ def fetch_macro():
                 out["gold_ounce"] = to_float(r.json().get("pax-gold", {}).get("usd"))
         except Exception as e:
             err.append(f"طلا (۲): {e}")
+    if out["gold_ounce"] <= 0 or out["silver_ounce"] <= 0:
+        for k, sym in (("gold_ounce", "GC=F"), ("silver_ounce", "SI=F")):
+            if out[k] <= 0:
+                out[k] = fetch_yahoo_last(s, sym)
     if out["gold_ounce"] > 0 and out["silver_ounce"] > 0:
         out["gold_ratio"] = out["gold_ounce"] / out["silver_ounce"]
     try:

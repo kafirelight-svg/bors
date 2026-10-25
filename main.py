@@ -155,6 +155,9 @@ BoxLayout:
         Btn:
             text: app.t_glob
             on_release: app.show('glob')
+        Btn:
+            text: app.t_gold
+            on_release: app.show('gold')
     FaLabel:
         id: status
         raw: ''
@@ -222,6 +225,7 @@ class TseApp(App):
     t_scan = StringProperty(fa("اسکنر بورس"))
     t_my = StringProperty(fa("نماد من"))
     t_glob = StringProperty(fa("جهانی"))
+    t_gold = StringProperty(fa("طلا"))
 
     def build(self):
         self.title = "TSE Market Hunter"
@@ -273,6 +277,18 @@ class TseApp(App):
                 self.liq_in.text = f.read().strip()
         except Exception:
             pass
+        def _saved_input(fn):
+            t = TextInput(hint_text="0", multiline=False, input_filter="float",
+                          size_hint_y=None, height=dp(44))
+            try:
+                with open(os.path.join(self.user_data_dir, fn)) as f:
+                    t.text = f.read().strip()
+            except Exception:
+                pass
+            return t
+        self.m2_in = _saved_input("m2_manual.txt")
+        self.res_in = _saved_input("res_manual.txt")
+        self._build_gold()
         self.infl_in = TextInput(hint_text="%", multiline=False, input_filter="float",
                                  size_hint_y=None, height=dp(44))
         try:
@@ -280,6 +296,60 @@ class TseApp(App):
                 self.infl_in.text = f.read().strip()
         except Exception:
             pass
+
+    def _build_gold(self):
+        self.gold_sv, self.gold_box = self._scroll()
+        self.gold_page = BoxLayout(orientation="vertical")
+        btn = RButton(text=fa("به‌روزرسانی قیمت‌های طلا و نقره"), font_name="Vazir",
+                      size_hint_y=None, height=dp(46), background_normal="",
+                      background_color=(.85, .6, .1, 1))
+        btn.bind(on_release=lambda *_: threading.Thread(target=self._gold_job, daemon=True).start())
+        self.gold_page.add_widget(btn)
+        self.gold_page.add_widget(self.gold_sv)
+
+    def _gold_job(self):
+        try:
+            d = core.fetch_gold_tab()
+        except Exception as e:
+            d = {"err": str(e)}
+        self.gold_done(d)
+
+    @mainthread
+    def gold_done(self, d):
+        b = self.gold_box
+        b.clear_widgets()
+        H = lambda t: b.add_widget(FaLabel(raw=t, font_size="16sp", color=(.95, .75, .2, 1)))
+        R = lambda t, v: b.add_widget(ValueRow(t, v))
+        N = lambda k, f="{:,.0f}": f.format(d[k]) if d.get(k) else "نامشخص"
+        Pc = lambda k: f"{d[k]:+.1f}٪" if d.get(k) is not None else "نامشخص"
+        if d.get("err"):
+            R("خطا", d["err"])
+        R("تاریخ داده‌ی tgju", str(d.get("date") or "نامشخص"))
+        R("دلار بازار آزاد (تومان)", N("usd"))
+        R("انس طلا (دلار)", N("xau", "{:,.2f}"))
+        R("انس نقره (دلار)", N("xag", "{:,.2f}"))
+        H("— حباب طلا و سکه (نسبت به قیمت جهانی × دلار آزاد) —")
+        R("طلای ۱۸ بازار", N("g18"))
+        R("طلای ۱۸ ذاتی", N("f18"))
+        R("حباب طلای ۱۸", Pc("b18"))
+        R("سکه امامی بازار", N("emami"))
+        R("سکه امامی ذاتی", N("femami"))
+        R("حباب سکه امامی", Pc("bemami"))
+        H("— نقره ۹۹۹ (گرم) —")
+        R("نقره ۹۹۹ بازار", N("s999"))
+        R("نقره ۹۹۹ ذاتی", N("fs999"))
+        R("حباب نقره", Pc("bsilver"))
+        H("— نسبت طلا به نقره —")
+        R("نسبت جهانی (انس طلا ÷ انس نقره)", N("r_glob", "{:.2f}"))
+        R("نسبت داخلی (طلای ۲۴ ÷ نقره ۹۹۹)", N("r_dom", "{:.2f}"))
+        if d.get("r_gap") is not None:
+            g = d["r_gap"]
+            R("فاصله‌ی داخلی از جهانی: " + ("نقره داخلی ارزان‌تر" if g > 0 else "نقره داخلی گران‌تر"),
+              f"{g:+.1f}٪")
+        else:
+            R("فاصله‌ی دو نسبت", "نامشخص")
+        b.add_widget(FaLabel(raw="توضیح: ذاتی = قیمت جهانی × دلار آزاد؛ مالیات، اجرت و حباب سکه در آن نیست. پیش‌بینی نیست.",
+                             font_size="11sp"))
 
     def _build_scan(self):
         from kivy.uix.button import Button
@@ -401,7 +471,8 @@ class TseApp(App):
         body = self.root_w.ids.body
         body.clear_widgets()
         body.add_widget({"macro": lambda: self.macro_page, "scan": lambda: self.scan_page,
-                         "my": lambda: self.my_page, "glob": lambda: self.glob_page}[name]())
+                         "my": lambda: self.my_page, "glob": lambda: self.glob_page,
+                         "gold": lambda: self.gold_page}[name]())
 
     @property
     def macro_page(self):
@@ -449,6 +520,12 @@ class TseApp(App):
                 f.write(self.liq_in.text.strip())
         except Exception:
             pass
+        for fn, w in (("m2_manual.txt", self.m2_in), ("res_manual.txt", self.res_in)):
+            try:
+                with open(os.path.join(self.user_data_dir, fn), "w") as f:
+                    f.write(w.text.strip())
+            except Exception:
+                pass
         try:
             with open(os.path.join(self.user_data_dir, "infl_manual.txt"), "w") as f:
                 f.write(self.infl_in.text.strip())
@@ -485,6 +562,25 @@ class TseApp(App):
         b.clear_widgets()
         b.add_widget(FaLabel(raw="نرخ رسمی ICE دستی (تومان) — خالی = خودکار", font_size="12sp"))
         b.add_widget(self.ice_in)
+        b.add_widget(FaLabel(raw="حجم نقدینگی M2 (همت = هزار میلیارد تومان) — دستی", font_size="12sp"))
+        b.add_widget(self.m2_in)
+        b.add_widget(FaLabel(raw="ذخایر و ارز موجود (میلیارد دلار) — دستی", font_size="12sp"))
+        b.add_widget(self.res_in)
+        try:
+            m2, rs = float(self.m2_in.text), float(self.res_in.text)
+        except Exception:
+            m2 = rs = 0
+        b.add_widget(FaLabel(raw="— ارزش ذاتی دلار = M2 ÷ ارز موجود —", font_size="16sp", color=(.2, .75, .95, 1)))
+        if m2 > 0 and rs > 0:
+            iv = m2 * 1000 / rs
+            ValueRow_ = lambda t, v: b.add_widget(ValueRow(t, v))
+            ValueRow_("به ازای هر دلار موجود (تومان)", f"{iv:,.0f}")
+            cur = (d.get("free_market_toman") or 0)
+            if cur > 0:
+                ValueRow_("دلار بازار آزاد", f"{cur:,.0f}")
+                ValueRow_("بازار نسبت به ارزش ذاتی", f"{(cur / iv - 1) * 100:+.1f}٪")
+        else:
+            b.add_widget(ValueRow("ارزش ذاتی دلار", "نامشخص (M2 و ذخایر را وارد کنید)"))
         b.add_widget(FaLabel(raw="رشد نقدینگی نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
         b.add_widget(self.liq_in)
         b.add_widget(FaLabel(raw="تورم نقطه‌به‌نقطه (٪) — دستی", font_size="12sp"))
