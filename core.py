@@ -813,4 +813,5 @@ def analyze_global(sym, name):
     import analysis, globalx
     d = globalx.fetch_yahoo(make_session(), sym)
     rep = analysis.full_report(d)
-    return dict(rep, name=name, d=d)
+    import globalx as gx
+    return dict(rep, name=name, d=d, kl=gx.key_levels(d))

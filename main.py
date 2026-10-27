@@ -457,10 +457,23 @@ class TseApp(App):
             return
         self.set_status("")
         box.add_widget(FaLabel(raw=rep["name"], font_size="17sp"))
+        kl = rep.get("kl") or {}
+        if kl.get("price"):
+            fmt = lambda x: f"{x:,.2f}"
+            box.add_widget(FaLabel(raw=f"قیمت کنونی: {fmt(kl['price'])}  (تاریخ {kl['day']})", font_size="15sp"))
+            for r in reversed(kl["res"]):
+                box.add_widget(FaLabel(raw=f"مقاومت ({r['tf']}): {fmt(r['price'])}  — تاریخ {r['day']}", font_size="13sp", color=(.95, .45, .45, 1)))
+            for s in kl["sup"]:
+                box.add_widget(FaLabel(raw=f"حمایت ({s['tf']}): {fmt(s['price'])}  — تاریخ {s['day']}", font_size="13sp", color=(.45, .9, .55, 1)))
+            if not kl["res"]:
+                box.add_widget(FaLabel(raw="مقاومتی بالای قیمت پیدا نشد", font_size="12sp"))
+            if not kl["sup"]:
+                box.add_widget(FaLabel(raw="حمایتی زیر قیمت پیدا نشد", font_size="12sp"))
         ch = ChartWidget(size_hint_y=None, height=dp(300))
-        ch.set_data(rep["d"], rep["levels"])
+        lv = [(r["price"], "res") for r in kl.get("res", [])] + [(s["price"], "sup") for s in kl.get("sup", [])]
+        ch.set_data(rep["d"], lv or rep["levels"])
         box.add_widget(ch)
-        box.add_widget(FaLabel(raw="سبز: حمایت | قرمز: مقاومت | زرد: میانگین ۵۰ روزه", font_size="11sp"))
+        box.add_widget(FaLabel(raw="سبز: حمایت | قرمز: مقاومت (۳ تا هر کدام) | زرد: میانگین ۵۰ روزه", font_size="11sp"))
         for ln in rep["lines"]:
             box.add_widget(FaLabel(raw=ln, font_size="13sp"))
         box.add_widget(FaLabel(
